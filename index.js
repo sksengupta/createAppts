@@ -71,13 +71,14 @@ function getClinics() {
         })
         
         // Filter to only return clinics that start with "DEV/"
-        var filteredList = list.filter(function(clinic) {
-          // Check if clinic name field starts with "DEV/"
-          var clinicName = clinic.CLINNAME || clinic.RESOURCE_NAME || '';
-          return clinicName.startsWith('DEV/');
-        });
+        // var filteredList = list.filter(function(clinic) {
+        //   // Check if clinic name field starts with "DEV/"
+        //   var clinicName = clinic.CLINNAME || clinic.RESOURCE_NAME || '';
+        //   return clinicName.startsWith('DEV/');
+        // });
         
-        resolve(filteredList)
+        // resolve(filteredList)
+        resolve(list)
       } else {
         reject(new Error('No response received'));
       }
@@ -402,12 +403,12 @@ function getUserInfo() {
 
 
 //main
-console.log('Commands: l-list DEV clinics, m-make bulk appointments, r-create appointment request & appointment, u-authenticate user')
+console.log('Commands: l-list DEV clinics, m-make bulk appointments, a-create appointment request & appointment')
 stdin.addListener("data", function (d) {
   if (d.toString().trim() === 'l') {
     getClinics().then(clinics => {
-      console.log("DEV Clinics:", clinics.length);
-      clinics.forEach(clinic => console.log(`${clinic.CLINNAME} (${clinic.HOSPITAL_LOCATION_ID})`));
+      console.log("Clinics:", clinics.length);
+      clinics.forEach(clinic => console.log(`${clinic.CLINNAME},(${clinic.HOSPITAL_LOCATION_ID}),(${clinic.RESOURCEID})`));
     }).catch(error => {
       console.log("Error getting clinics:", error.message);
     });    
@@ -568,92 +569,57 @@ stdin.addListener("data", function (d) {
     });
   }
   
-  if (d.toString().trim() === 'r') {
+  if (d.toString().trim() === 'a') {
     const testApptRequestAndCreate = async () => {
-      let patientIen = "100942";
-      let clinicIen = "466";
+      let patientICNs = ["237", "100876", "100898"]
+
+      let clinicIen = "64";
       
-      try {
+      for(var i in patientICNs) {
+        try {
         console.log('Creating appointment request...');
-        var requestResult = await createApptRequest(patientIen, clinicIen);
+        icn = patientICNs[i];
+        var requestResult = await createApptRequest(icn, clinicIen);
+        console.log(clinicIen)
         console.log('Request ID:', requestResult.requestId);
         
         console.log('Creating appointment...');
-        // Get current date/time in EST timezone (where VistA server is located)
-        const appointmentDate = new Date();
-        const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
-        estDate.setDate(estDate.getDate() + 8); // 1 week from now
+
+        for(var offset=1; offset < 5; offset++) {
+           // Get current date/time in EST timezone (where VistA server is located)
+          const appointmentDate = new Date();
+          const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
+          estDate.setDate(estDate.getDate() + offset);
+          console.log(icn);
+          console.log(offset);
+          console.log(estDate);
         
-        const apptResult = await makeAppt(
-          patientIen, 
-          clinicIen, 
-          "123",
-          estDate.toLocaleDateString("en-US"), 
-          "08:00", 
-          "08:30",
-          requestResult
-        );
-        
-        if (apptResult.success) {
-          console.log('Appointment created successfully!');
-          console.log('Appointment ID:', apptResult.appointmentId);
-        } else {
-          console.log('Appointment creation returned unexpected result:', apptResult.payload);
+          const apptResult = await makeAppt(
+            icn, 
+            clinicIen, 
+            "31",
+            estDate.toLocaleDateString("en-US"), 
+            "14:00", 
+            "14:30",
+            requestResult
+          );
+          console.log(clinicIen)
+          if (apptResult.success) {
+            console.log('Appointment created successfully for user ' + icn + ' on ' + + estDate + '!');
+            console.log('Appointment ID:', apptResult.appointmentId);
+            console.log(apptResult)
+          } else {
+            console.log('Appointment creation returned unexpected result:', apptResult.payload);
+          }
         }
         
       } catch (error) {
         console.log('Error:', error.message);
       }
+      }
+      
     }
     testApptRequestAndCreate();
-  }
-  
-  if (d.toString().trim() === 'u') {
-    console.log('Authenticating user...');
-    VistaJS.authenticate(logger, vistaConfig, function(error, authResult) {
-      if (error) {
-        console.log('Authentication failed:', error.message);
-      } else {
-        console.log('Authentication successful! Getting detailed user info...');
-        
-        // Now get detailed user information
-        getUserInfo().then(userInfo => {
-          // Store the complete user info with authentication data
-          authenticatedUser = {
-            ...authResult,
-            ...userInfo
-          };
-          
-          console.log('=== User Information ===');
-          console.log('DUZ:', userInfo.duz);
-          console.log('Name:', userInfo.name);
-          console.log('User Class:', userInfo.userClass);
-          console.log('Can Sign Orders:', userInfo.canSign ? 'Yes' : 'No');
-          console.log('Is Provider:', userInfo.isProvider ? 'Yes' : 'No');
-          console.log('Order Role:', userInfo.orderRole);
-          console.log('Service:', userInfo.service);
-          console.log('Domain:', userInfo.domain);
-          console.log('Station Number:', userInfo.staNum);
-          console.log('DTIME:', userInfo.dtime);
-          console.log('Web Access:', userInfo.webAccess ? 'Yes' : 'No');
-          console.log('Auto Save:', userInfo.autoSave ? 'Enabled' : 'Disabled');
-          console.log('Enable Verify:', userInfo.enableVerify ? 'Yes' : 'No');
-          console.log('Allow Hold:', userInfo.allowHold ? 'Yes' : 'No');
-          console.log('Is RPL:', userInfo.isRpl ? 'Yes' : 'No');
-          
-          if (userInfo.jobNumber) {
-            console.log('Job Number:', userInfo.jobNumber);
-          }
-          
-          console.log('========================');
-          
-        }).catch(userInfoError => {
-          console.log('Failed to get user info:', userInfoError.message);
-          // Still store basic auth info even if user info fails
-          authenticatedUser = authResult;
-        });
-      }
-    });
   }
 
 })
