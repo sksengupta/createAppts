@@ -401,6 +401,20 @@ function getUserInfo() {
   });
 }
 
+function csvToJSON(csv)  {
+  var lines = csv.split("\n");
+  var result = [];
+  for(var line = 0; line < lines.length; line++)  {
+    var obj = {};
+    var vals = lines[line].split(",");
+    obj["CLINNAME"] = vals[0];
+    obj["HOSPITAL_LOCATION_ID"] = vals[1];
+    obj["RESOURCEID"] = vals[2];
+    result.push(obj);
+  }
+  return result;
+}
+
 
 //main
 console.log('Commands: l-list DEV clinics, m-make bulk appointments, a-create appointment request & appointment')
@@ -437,6 +451,9 @@ stdin.addListener("data", function (d) {
       var apptsLength = 100 //number of appointments to attempt
       for (var e = 0; e < apptsLength; e++) {
         var clinics = await getClinics()
+
+        var clinic_iens = ["64", "195","32"]
+        var clinics = clinics.filter((x) => clinic_iens.includes(x.HOSPITAL_LOCATION_ID));
      
         for (var i = 0; i < clinics.length; i++) {
           var slots = config.slots
