@@ -417,7 +417,7 @@ function csvToJSON(csv)  {
 
 
 //main
-console.log('Commands: l-list DEV clinics, m-make bulk appointments, a-create appointment request & appointment')
+console.log('Commands: l-list DEV clinics, m-make bulk appointments, a-create appointment request & appointment, b-bulk appointments on specific day')
 stdin.addListener("data", function (d) {
   if (d.toString().trim() === 'l') {
     getClinics().then(clinics => {
@@ -426,6 +426,164 @@ stdin.addListener("data", function (d) {
     }).catch(error => {
       console.log("Error getting clinics:", error.message);
     });    
+  }
+
+  if (d.toString().trim() === 'b') {
+    var appointmentiens = []
+    let apptDays = 1
+    
+    // Progress tracking
+    let totalAttempts = 0;
+    let successfulAppts = 0;
+    let errorCount = 0;
+    
+    // Progress bar function
+    function updateProgress() {
+      if (config.clinicDebug === 0) {
+        process.stdout.clearLine();
+        process.stdout.cursorTo(0);
+        process.stdout.write(`Progress: ${totalAttempts} attempts | ✓ ${successfulAppts} created | ✗ ${errorCount} errors`);
+      }
+    }
+    
+    const doAppts = async () => {
+      //get clinics
+      var apptsLength = 200 //number of appointments to attempt
+      for (var e = 0; e < apptsLength; e++) {
+        var clinics = await getClinics();
+
+        var clinic_iens = ["64", "195","32"]
+        var clinics = clinics.filter((x) => clinic_iens.includes(x.HOSPITAL_LOCATION_ID));
+     
+        for (var i = 0; i < clinics.length; i++) {
+          var slots = config.slots
+
+          var result = [clinics[i]]; // Use the current clinic directly
+          
+          //get random letter
+          const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+          let letter = characters.charAt(Math.floor(Math.random() * characters.length))
+          //get random number between 1 and 200
+          let number = Math.floor(Math.random() * 20) + 1
+          //get random name of patient based on random letter and number
+          let name = await getRandName(letter, number)
+          if (name) {
+            if (name.IEN) {
+              //get date/time
+              for (var e = 0; e < apptDays; e++) {
+                // Get current date/time in EST timezone (where VistA server is located)
+                var date = new Date();
+                date = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                
+                // Randomly pick a date between today and today +30 days
+                var randomDaysToAdd = Math.floor(Math.random() * 31); // 0 to 30 days
+                date.setDate(date.getDate() + 2);
+
+                var s = Math.floor(Math.random() * 12 - 1) + 1
+                
+                // Create appointment request once per patient/clinic combination
+                var requestResult = null;
+                
+                try {
+                  // First create appointment request
+                  if (config.clinicDebug === 1) {
+                    console.log('Creating appointment request for patient:', name.IEN, 'clinic:', result[0].HOSPITAL_LOCATION_ID, 'resourceid:', result[0].RESOURCEID);
+                  }
+                  requestResult = await createApptRequest(name.IEN, result[0].HOSPITAL_LOCATION_ID);
+                  if (config.clinicDebug === 1) {
+                    console.log('Request ID:', requestResult.requestId);
+                  }
+                  
+                } catch (error) {
+                  if (config.clinicDebug === 1) {
+                    console.log('Error creating appointment request:', error.message);
+                  }
+                  
+                  // Handle connection reset errors
+                  if (error.code === 'ECONNRESET' || error.message.includes('ECONNRESET')) {
+                    if (config.clinicDebug === 1) {
+                      console.log('Connection reset detected. Waiting 5 seconds before continuing...');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    continue;
+                  }
+                  continue; // Skip to next patient if request creation fails
+                }
+                
+                // Create single appointment attempt (no retries)
+                try {
+                  totalAttempts++;
+                  
+                  // Create the appointment using the request data
+                  var apptResult = await makeAppt(
+                    name.IEN, 
+                    result[0].HOSPITAL_LOCATION_ID, 
+                    result[0].RESOURCEID, 
+                    date.toLocaleDateString("en-US"), 
+                    slots[s][0], 
+                    slots[s][1],
+                    requestResult // Use the appointment request data
+                  );
+                  
+                  if (apptResult.success) {
+                    successfulAppts++;
+                    if (config.clinicDebug === 1) {
+                      console.log('Appointment created successfully! ID:', apptResult.appointmentId);
+                    }
+                    appointmentiens.push(apptResult.appointmentId);
+                  } else {
+                    errorCount++;
+                    if (config.clinicDebug === 1) {
+                      console.log('Appointment creation failed:', apptResult.payload);
+                    }
+                  }
+                  
+                  updateProgress();
+                  
+                } catch (error) {
+                  totalAttempts++;
+                  errorCount++;
+                  updateProgress();
+                  
+                  if (config.clinicDebug === 1) {
+                    console.log('Error creating appointment:', error.message);
+                  }
+                  
+                  // Handle connection reset errors
+                  if (error.code === 'ECONNRESET' || error.message.includes('ECONNRESET')) {
+                    if (config.clinicDebug === 1) {
+                      console.log('Connection reset detected. Waiting 5 seconds before continuing...');
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    continue;
+                  }
+                  
+                  // If already scheduled, stop trying
+                  if (error.message.includes('already scheduled')) {
+                    if (config.clinicDebug === 1) {
+                      console.log("Patient already has appointment, stopping");
+                    }
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    doAppts().then(() => {
+      if (config.clinicDebug === 0) {
+        console.log(''); // New line after progress bar
+      }
+      console.log(`\n=== APPOINTMENT CREATION COMPLETE ===`);
+      console.log(`Total Attempts: ${totalAttempts}`);
+      console.log(`Successful Appointments: ${successfulAppts}`);
+      console.log(`Errors: ${errorCount}`);
+      console.log(`Success Rate: ${totalAttempts > 0 ? ((successfulAppts / totalAttempts) * 100).toFixed(1) : 0}%`);
+      console.log(`=====================================`);
+    });
   }
   
   if (d.toString().trim() === 'm') {
