@@ -70,7 +70,7 @@ node .
 ### Example Session
 ```bash
 $ node .
-Commands: l-list DEV clinics, m-make bulk appointments, r-create appointment request & appointment, u-authenticate user
+Commands: l-list DEV clinics, m-make bulk appointments, b-make bulk appointments on specific day, a-make appointments for valid test users in specific clinic over multiple days
 
 # List available clinics
 l
@@ -159,6 +159,9 @@ This translates to: Appointment ID 33573 with no errors.
 4. **Timezone Issues**
    - Application automatically handles timezone conversion
    - Ensure system clock is accurate
+
+5. **User does not have access to to option SDECRPC**
+   - Request that this option be added to user's station 500 configuration
 
 ### Debug Mode
 Set `clinicDebug: 1` in config.js for detailed logging:

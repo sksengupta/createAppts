@@ -454,6 +454,8 @@ stdin.addListener("data", function (d) {
 
         var clinic_iens = ["64", "195","32"]
         var clinics = clinics.filter((x) => clinic_iens.includes(x.HOSPITAL_LOCATION_ID));
+
+        var offset = 2; //offset of how many days in future to create the bulk appointments
      
         for (var i = 0; i < clinics.length; i++) {
           var slots = config.slots
@@ -475,9 +477,10 @@ stdin.addListener("data", function (d) {
                 var date = new Date();
                 date = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
                 
-                // Randomly pick a date between today and today +30 days
                 var randomDaysToAdd = Math.floor(Math.random() * 31); // 0 to 30 days
-                date.setDate(date.getDate() + 2);
+                date.setDate(date.getDate() + offset);
+
+                console.log(date)
 
                 var s = Math.floor(Math.random() * 12 - 1) + 1
                 
@@ -748,10 +751,11 @@ stdin.addListener("data", function (d) {
     const testApptRequestAndCreate = async () => {
       let patientICNs = ["237", "100876", "100898"]
 
-      let clinicIen = "64";
+      let clinicIen = "17";
+      let resourceid = "2"
       
       for(var i in patientICNs) {
-        try {
+        
         console.log('Creating appointment request...');
         icn = patientICNs[i];
         var requestResult = await createApptRequest(icn, clinicIen);
@@ -760,22 +764,22 @@ stdin.addListener("data", function (d) {
         
         console.log('Creating appointment...');
 
-        for(var offset=1; offset < 5; offset++) {
+        for(var offset=0; offset < 5; offset++) {
            // Get current date/time in EST timezone (where VistA server is located)
           const appointmentDate = new Date();
           const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
           estDate.setDate(estDate.getDate() + offset);
           console.log(icn);
-          console.log(offset);
           console.log(estDate);
         
-          const apptResult = await makeAppt(
+          try{
+            const apptResult = await makeAppt(
             icn, 
             clinicIen, 
-            "31",
+            "20",
             estDate.toLocaleDateString("en-US"), 
-            "14:00", 
-            "14:30",
+            "9:00", 
+            "9:30",
             requestResult
           );
           console.log(clinicIen)
@@ -786,11 +790,14 @@ stdin.addListener("data", function (d) {
           } else {
             console.log('Appointment creation returned unexpected result:', apptResult.payload);
           }
+          }
+          catch (error) {
+           console.log('Error:', error.message);
+          }
+          
         }
         
-      } catch (error) {
-        console.log('Error:', error.message);
-      }
+      
       }
       
     }
