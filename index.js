@@ -751,8 +751,8 @@ stdin.addListener("data", function (d) {
         const testApptRequestAndCreate = async (start, end) => {
             let patientICNs = config.patientICNs || ["237", "100876", "100898"]
 
-            let clinicIen = config.clinicIEN || "64"
-            let resourceIEN = config.resourceIEN || "31" //default to DEV/PRIMARY CARE RESOURCE
+            let clinicIen = config.clinicIEN
+            let resourceIEN = config.resourceIEN
 
             for (var i in patientICNs) {
                     console.log('Creating appointment request...');
@@ -769,7 +769,7 @@ stdin.addListener("data", function (d) {
                         const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
                         estDate.setDate(estDate.getDate() + offset);
                         console.log(icn);
-          console.log(offset);
+                        console.log(offset);
                         console.log(estDate);
 
                         const apptResult = await makeAppt(
