@@ -456,7 +456,7 @@ stdin.addListener("data", function (d) {
         var clinics = clinics.filter((x) => clinic_iens.includes(x.HOSPITAL_LOCATION_ID));
 
         var offset = 2; //offset of how many days in future to create the bulk appointments
-     
+
         for (var i = 0; i < clinics.length; i++) {
           var slots = config.slots
 
@@ -476,7 +476,7 @@ stdin.addListener("data", function (d) {
                 // Get current date/time in EST timezone (where VistA server is located)
                 var date = new Date();
                 date = new Date(date.toLocaleString("en-US", {timeZone: "America/New_York"}));
-                
+
                 var randomDaysToAdd = Math.floor(Math.random() * 31); // 0 to 30 days
                 date.setDate(date.getDate() + offset);
 
@@ -746,62 +746,68 @@ stdin.addListener("data", function (d) {
       console.log(`=====================================`);
     });
   }
-  
-  if (d.toString().trim() === 'a') {
-    const testApptRequestAndCreate = async () => {
-      let patientICNs = ["237", "100876", "100898"]
 
-      let clinicIen = "17";
-      let resourceid = "2"
-      
-      for(var i in patientICNs) {
-        
-        console.log('Creating appointment request...');
-        icn = patientICNs[i];
-        var requestResult = await createApptRequest(icn, clinicIen);
-        console.log(clinicIen)
-        console.log('Request ID:', requestResult.requestId);
-        
-        console.log('Creating appointment...');
+    if (d.toString().trim() === 'a') {
+        const testApptRequestAndCreate = async (start, end) => {
+            let patientICNs = config.patientICNs || ["237", "100876", "100898"]
 
-        for(var offset=0; offset < 5; offset++) {
-           // Get current date/time in EST timezone (where VistA server is located)
-          const appointmentDate = new Date();
-          const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
-          estDate.setDate(estDate.getDate() + offset);
-          console.log(icn);
-          console.log(estDate);
-        
-          try{
-            const apptResult = await makeAppt(
-            icn, 
-            clinicIen, 
-            "20",
-            estDate.toLocaleDateString("en-US"), 
-            "9:00", 
-            "9:30",
-            requestResult
-          );
-          console.log(clinicIen)
-          if (apptResult.success) {
-            console.log('Appointment created successfully for user ' + icn + ' on ' + + estDate + '!');
-            console.log('Appointment ID:', apptResult.appointmentId);
-            console.log(apptResult)
-          } else {
-            console.log('Appointment creation returned unexpected result:', apptResult.payload);
-          }
-          }
-          catch (error) {
-           console.log('Error:', error.message);
-          }
-          
+            let clinicIen = config.clinicIEN
+            let resourceIEN = config.resourceIEN
+
+            for (var i in patientICNs) {
+                    console.log('Creating appointment request...');
+                    icn = patientICNs[i];
+
+                    var requestResult = await createApptRequest(icn, clinicIen);
+                    console.log(clinicIen)
+                    console.log('Request ID:', requestResult.requestId);
+                    console.log('Creating appointment...');
+
+        for(var offset=1; offset < 5; offset++) {
+                        // Get current date/time in EST timezone (where VistA server is located)
+                        const appointmentDate = new Date();
+                        const estDate = new Date(appointmentDate.toLocaleString("en-US", {timeZone: "America/New_York"}));
+                        estDate.setDate(estDate.getDate() + offset);
+                        console.log(icn);
+                        console.log(offset);
+                        console.log(estDate);
+
+                        const apptResult = await makeAppt(
+                            icn,
+                            clinicIen,
+                            resourceIEN,
+                            estDate.toLocaleDateString("en-US"),
+                            start,
+                            end,
+                            requestResult
+                        );
+                        console.log(clinicIen)
+                        if (apptResult.success) {
+                            console.log('Appointment created successfully for user ' + icn + ' on ' + +estDate + '!');
+                            console.log('Appointment ID:', apptResult.appointmentId);
+                            console.log(apptResult)
+                        } else {
+                            console.log('Appointment creation returned unexpected result:', apptResult.payload);
+                        }
+                    }
+            }
+
         }
-        
-      
-      }
-      
-    }
-    testApptRequestAndCreate();
+
+        // Iterate over slots asynchronously, break on first success
+        (async () => {
+            for (const slot of config.slots) {
+                const [start, end] = slot;
+                try {
+                    await testApptRequestAndCreate(start, end);
+                    // If no error, break out of the loop
+                    break;
+                } catch (error) {
+                    console.log(`Error for slot [${start}, ${end}]:`, error.message);
+                    // Continue to next slot
+                }
+            }
+        })();
   }
 
 })
